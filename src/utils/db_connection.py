@@ -1,108 +1,60 @@
-"""
-Database Connection Module - AWS Glue Catalog Only
-"""
-
 import pandas as pd
 import logging
 from typing import Dict, List, Optional, Any
+from datetime import datetime, timedelta
+import random
 
 logger = logging.getLogger(__name__)
 
 
-class GlueDataLoaderSimple:
-    """Simple Glue Data Loader for reading from Glue Catalog"""
+class GlueDataLoader:
+    """Simple Glue Data Loader with sample data"""
 
     def __init__(self, database_name: str = "dealers", region: str = "us-east-1"):
         self.database_name = database_name
         self.region = region
         self.cache = {}
 
-        # Sample data for fallback
-        self.sample_dealers = ["Premium Motors", "Elite Auto", "City Cars", "Highway Motors", "Metro Auto"]
+        # Sample data for the dashboard
+        self.sample_dealers = [
+            "Premium Motors", "Elite Auto", "City Cars", "Highway Motors",
+            "Metro Auto", "Coast Motors", "Central Auto", "Northside Cars",
+            "Southside Motors", "East End Auto"
+        ]
+
         self.sample_products = ["Sedan", "SUV", "Hatchback", "Truck", "MUV", "EV"]
+        self.sample_regions = ["North", "South", "East", "West", "Central"]
 
-        logger.info(f"GlueDataLoaderSimple initialized: database={database_name}")
-
-    def list_tables(self) -> List[str]:
-        """List tables in Glue Catalog"""
-        try:
-            import boto3
-            glue = boto3.client('glue', region_name=self.region)
-            response = glue.get_tables(DatabaseName=self.database_name)
-            return [t['Name'] for t in response.get('TableList', [])]
-        except Exception as e:
-            logger.warning(f"Cannot list tables: {e}")
-            return []
+        logger.info(f"GlueDataLoader initialized with sample data")
 
     def get_dealers(self) -> List[str]:
-        """Get dealers"""
-        try:
-            # Try to read from Glue
-            import awswrangler as wr
-            df = wr.athena.read_sql_query(
-                sql=f'SELECT DISTINCT dealer_name FROM "{self.database_name}"."vw_dealer_location" LIMIT 100',
-                database=self.database_name,
-                s3_output=f's3://aws-athena-query-results-{self.region}/glue-results/'
-            )
-            if not df.empty:
-                return df['dealer_name'].tolist()
-        except Exception as e:
-            logger.warning(f"Cannot read dealers from Glue: {e}")
-
+        """Get list of dealers"""
         return self.sample_dealers
 
     def get_products(self) -> List[str]:
-        """Get products"""
-        try:
-            import awswrangler as wr
-            df = wr.athena.read_sql_query(
-                sql=f'SELECT DISTINCT product_category FROM "{self.database_name}"."vw_sales_per_product_category" LIMIT 100',
-                database=self.database_name,
-                s3_output=f's3://aws-athena-query-results-{self.region}/glue-results/'
-            )
-            if not df.empty:
-                return df['product_category'].tolist()
-        except Exception as e:
-            logger.warning(f"Cannot read products from Glue: {e}")
-
+        """Get list of products"""
         return self.sample_products
 
     def get_regions(self) -> List[str]:
-        """Get regions"""
-        try:
-            import awswrangler as wr
-            df = wr.athena.read_sql_query(
-                sql=f'SELECT DISTINCT location_region FROM "{self.database_name}"."vw_dealer_location" LIMIT 100',
-                database=self.database_name,
-                s3_output=f's3://aws-athena-query-results-{self.region}/glue-results/'
-            )
-            if not df.empty:
-                return df['location_region'].tolist()
-        except Exception as e:
-            logger.warning(f"Cannot read regions from Glue: {e}")
-
-        return ["North", "South", "East", "West", "Central"]
+        """Get list of regions"""
+        return self.sample_regions
 
     def get_kpi_metrics(self, filters: Dict = None) -> Dict:
-        """Get KPI metrics"""
-        # Return sample KPI data for now
+        """Get KPI metrics with realistic sample data"""
         return {
-            'ccc': 35.5,
-            'repair_tat': 42,
-            'revenue_growth': 8.5,
-            'gross_margin': 28.3,
-            'stock_availability': 82.5,
-            'backorder': 7.2,
-            'lead_time': 6,
-            'contribution_margin': 22.5,
-            'sales_volume': 12500
+            'ccc': round(random.uniform(25, 55), 1),
+            'repair_tat': random.randint(24, 72),
+            'revenue_growth': round(random.uniform(-2, 18), 1),
+            'gross_margin': round(random.uniform(18, 42), 1),
+            'stock_availability': round(random.uniform(65, 95), 1),
+            'backorder': round(random.uniform(2, 15), 1),
+            'lead_time': random.randint(3, 10),
+            'contribution_margin': round(random.uniform(15, 35), 1),
+            'sales_volume': random.randint(5000, 25000)
         }
 
     def get_transaction_data(self, filters: Dict = None, page: int = 1, page_size: int = 20) -> pd.DataFrame:
-        """Get transaction data"""
-        import random
-        from datetime import datetime, timedelta
-
+        """Get sample transaction data"""
         dealers = self.get_dealers()
         data = []
 
@@ -114,59 +66,158 @@ class GlueDataLoaderSimple:
                 'transaction_id': f'TXN{i + 1:04d}',
                 'dealer_name': random.choice(dealers),
                 'product_category': random.choice(self.sample_products),
-                'order_date': order_date,
-                'delivery_date': delivery_date,
+                'product_desc': f'Product {random.choice(["X", "Y", "Z"])} {random.randint(1, 10)}',
+                'order_date': order_date.strftime('%Y-%m-%d'),
                 'order_flag': 'Y',
+                'delivery_date': delivery_date.strftime('%Y-%m-%d'),
                 'delivery_flag': 'Y' if random.random() > 0.1 else 'N',
+                'lead_time_days': (delivery_date - order_date).days,
+                'invoice_date': (delivery_date + timedelta(days=random.randint(1, 7))).strftime('%Y-%m-%d'),
+                'invoice_flag': 'Y',
                 'invoice_amount': random.randint(10000, 100000),
-                'invoice_status': random.choice(['Paid', 'Pending', 'Overdue'])
+                'invoice_status': random.choice(['Paid', 'Pending', 'Overdue']),
+                'warranty_status': random.choice(['Active', 'Expired'])
             })
 
         return pd.DataFrame(data)
 
     def get_dealer_health_scores(self, filters: Dict = None) -> pd.DataFrame:
-        """Get health scores"""
+        """Get dealer health scores"""
         dealers = self.get_dealers()
-        import random
         data = []
+
         for dealer in dealers:
+            health_score = random.uniform(55, 95)
             data.append({
                 'dealer_name': dealer,
-                'health_score': random.uniform(60, 95),
-                'change_percent': random.uniform(-5, 15)
+                'health_score': round(health_score, 1),
+                'change_percent': round(random.uniform(-8, 12), 1),
+                'last_updated': datetime.now()
             })
+
         return pd.DataFrame(data)
 
     def get_strategic_insights(self) -> pd.DataFrame:
-        """Get insights"""
+        """Get strategic insights"""
+        insights = [
+            "7 dealers flagged as AT-Risk based on declining margins",
+            "Revenue growth is positive at 8.5% across the network",
+            "Stock availability improved by 5% this quarter",
+            "Service turnaround time reduced by 12% in North region",
+            "Cash conversion cycle optimized by 8 days on average"
+        ]
+
         return pd.DataFrame({
-            'insight_text': [
-                'Revenue growth is strong at 8.5% over the last quarter',
-                'Stock availability at 82.5% - monitor low stock dealers',
-                'Service turnaround time at 42 hours - below SLA target'
-            ],
-            'priority_level': [1, 2, 3]
+            'insight_text': insights,
+            'priority_level': list(range(1, len(insights) + 1)),
+            'created_at': [datetime.now()] * len(insights)
         })
+
+    def get_revenue_trend(self, filters: Dict = None) -> pd.DataFrame:
+        """Get revenue trend data"""
+        dealers = self.get_dealers()[:3]
+        dates = pd.date_range(start='2024-01-01', end='2024-12-31', freq='ME')
+
+        data = []
+        for dealer in dealers:
+            base_revenue = random.randint(50000, 150000)
+            for date in dates:
+                trend = 1 + (date.month - 1) * 0.05
+                revenue = base_revenue * trend * random.uniform(0.9, 1.1)
+                data.append({
+                    'dealer_name': dealer,
+                    'period': date,
+                    'total_revenue': round(revenue, 0)
+                })
+
+        return pd.DataFrame(data)
+
+    def get_profit_margin_by_dealer(self, filters: Dict = None) -> pd.DataFrame:
+        """Get profit margin by dealer"""
+        dealers = self.get_dealers()
+        data = []
+
+        for dealer in dealers:
+            data.append({
+                'dealer_name': dealer,
+                'gross_profit_margin_pct': round(random.uniform(15, 45), 1),
+                'total_revenue': random.randint(200000, 2000000)
+            })
+
+        return pd.DataFrame(data).sort_values('gross_profit_margin_pct', ascending=False)
+
+    def get_sales_by_product(self, filters: Dict = None) -> pd.DataFrame:
+        """Get sales by product category"""
+        data = []
+        for product in self.sample_products:
+            data.append({
+                'product_category': product,
+                'total_revenue': random.randint(50000, 500000),
+                'total_quantity': random.randint(100, 5000)
+            })
+
+        return pd.DataFrame(data)
+
+    def get_cash_conversion_cycle_trend(self, filters: Dict = None) -> pd.DataFrame:
+        """Get CCC by dealer"""
+        dealers = self.get_dealers()[:10]
+        data = []
+
+        for dealer in dealers:
+            data.append({
+                'dealer_name': dealer,
+                'dso': round(random.uniform(25, 55), 1),
+                'dio': round(random.uniform(20, 45), 1),
+                'dpo': round(random.uniform(15, 35), 1),
+                'ccc': round(random.uniform(30, 65), 1)
+            })
+
+        return pd.DataFrame(data).sort_values('ccc', ascending=False)
+
+    def get_lead_time_distribution(self, filters: Dict = None) -> pd.DataFrame:
+        """Get lead time by dealer"""
+        dealers = self.get_dealers()[:10]
+        data = []
+
+        for dealer in dealers:
+            data.append({
+                'dealer_name': dealer,
+                'avg_lead_time': round(random.uniform(3, 12), 1),
+                'order_count': random.randint(50, 500)
+            })
+
+        return pd.DataFrame(data).sort_values('avg_lead_time', ascending=False)
+
+    def get_journey_counts(self, filters: Dict = None) -> pd.DataFrame:
+        """Get journey stage counts"""
+        return pd.DataFrame([{
+            'order_count': random.randint(150, 300),
+            'delivery_count': random.randint(120, 280),
+            'invoice_count': random.randint(100, 260),
+            'paid_count': random.randint(80, 240),
+            'warranty_count': random.randint(50, 200),
+            'avg_lead_days': round(random.uniform(3, 8), 1)
+        }])
 
     def clear_cache(self):
         self.cache.clear()
 
     def get_cache_stats(self) -> Dict:
-        return {'cache_size': len(self.cache)}
+        return {'cache_size': len(self.cache), 'mode': 'sample_data'}
 
 
 class GlueConnection:
-    """AWS Glue Catalog connection"""
+    """AWS Glue Catalog connection with sample data"""
 
     def __init__(self, config: Dict = None):
         self.config = config or {}
         self.database_name = self.config.get('glue_database', 'dealers')
         self.region = self.config.get('region', 'us-east-1')
-        self.data_loader = GlueDataLoaderSimple(self.database_name, self.region)
-        logger.info(f"GlueConnection initialized: database={self.database_name}")
+        self.data_loader = GlueDataLoader(self.database_name, self.region)
+        logger.info(f"GlueConnection initialized with sample data")
 
     def connect(self) -> bool:
-        logger.info("Connected to Glue Catalog")
+        logger.info("Connected to Glue Catalog (using sample data)")
         return True
 
     def disconnect(self):
@@ -196,8 +247,23 @@ class GlueConnection:
     def get_strategic_insights(self) -> pd.DataFrame:
         return self.data_loader.get_strategic_insights()
 
-    def get_table_data(self, table_key: str, filters: Dict = None, limit: int = None) -> pd.DataFrame:
-        return pd.DataFrame()
+    def get_revenue_trend(self, filters: Dict = None) -> pd.DataFrame:
+        return self.data_loader.get_revenue_trend(filters)
+
+    def get_profit_margin_by_dealer(self, filters: Dict = None) -> pd.DataFrame:
+        return self.data_loader.get_profit_margin_by_dealer(filters)
+
+    def get_sales_by_product(self, filters: Dict = None) -> pd.DataFrame:
+        return self.data_loader.get_sales_by_product(filters)
+
+    def get_cash_conversion_cycle_trend(self, filters: Dict = None) -> pd.DataFrame:
+        return self.data_loader.get_cash_conversion_cycle_trend(filters)
+
+    def get_lead_time_distribution(self, filters: Dict = None) -> pd.DataFrame:
+        return self.data_loader.get_lead_time_distribution(filters)
+
+    def get_journey_counts(self, filters: Dict = None) -> pd.DataFrame:
+        return self.data_loader.get_journey_counts(filters)
 
     def clear_cache(self):
         self.data_loader.clear_cache()
@@ -207,19 +273,12 @@ class GlueConnection:
 
 
 def get_db_connection():
-    """Get database connection - Always returns GlueConnection"""
-    from .config import Config
-
-    try:
-        config = Config()
-        db_config = config.get('database', {})
-    except:
-        db_config = {}
-
-    logger.info("Creating GlueConnection (AWS Glue Catalog)")
+    """Get database connection - Always returns GlueConnection with sample data"""
+    logger.info("Creating GlueConnection with sample data")
     conn = GlueConnection({
-        'glue_database': db_config.get('glue_database', 'dealers'),
-        'region': db_config.get('region', 'us-east-1')
+        'glue_database': 'dealers',
+        'region': 'us-east-1'
     })
     conn.connect()
     return conn
+
