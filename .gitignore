@@ -8,3 +8,5 @@ venv/
 *.log 
 .idea/ 
 src/utils/.idea/ 
+.idea/ 
+src/utils/.idea/ 
