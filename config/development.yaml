@@ -1,4 +1,4 @@
-# Development Configuration
+
 app:
   name: DealerPulse
   version: 1.0.0
@@ -6,50 +6,22 @@ app:
   debug: true
 
 database:
-  type: redshift  # redshift or aurora
-  redshift:
-    host: localhost
-    port: 5439
-    database: dealer_db
-    user: dev_user
-    password: dev_password
-  aurora:
-    host: localhost
-    port: 5432
-    database: dealer_db
-    user: dev_user
-    password: dev_password
+  type: glue
+  glue_database: dealers
+  region: us-east-1
+  s3_output: s3://aws-athena-query-results-us-east-1/glue-results/
 
 aws:
+  enabled: true
   region: us-east-1
-  bedrock_model: anthropic.claude-3-sonnet-20240229-v1:0
-  amazon_q_application_id: your-q-application-id
-  max_tokens: 4096
-  temperature: 0.7
+  glue:
+    database: dealers
+  athena:
+    output_location: s3://aws-athena-query-results-us-east-1/glue-results/
 
 logging:
-  level: DEBUG
+  level: INFO
   file: logs/dealerpulse.log
-
-session:
-  ttl_seconds: 86400
-  cache_ttl_seconds: 3600
-  max_sessions: 1000
-
-kpi:
-  thresholds:
-    margin:
-      critical: 10
-      warning: 20
-    stock_availability:
-      critical: 50
-      warning: 70
-    repair_tat:
-      critical: 72
-      warning: 48
-    ccc:
-      critical: 75
-      warning: 60
 
 ui:
   page_title: DealerPulse - P2P Analytics Dashboard
@@ -58,10 +30,3 @@ ui:
   initial_sidebar_state: collapsed
   title: DealerPulse
   subtitle: Dealer Performance Analytics
-  colors:
-    primary: "#2563eb"
-    primary_dark: "#1e40af"
-    secondary: "#06b6d4"
-    success: "#10b981"
-    warning: "#f59e0b"
-    danger: "#ef4444"

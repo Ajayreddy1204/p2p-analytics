@@ -1,291 +1,113 @@
+
 """
-Database Connection Module
-Handles connections to Redshift and Aurora PostgreSQL
+Database Connection Module - AWS Glue Catalog
 """
 
-import psycopg2
 import pandas as pd
-from psycopg2.extras import RealDictCursor
-from typing import Dict, List, Optional, Any
 import logging
-import os
+from typing import Dict, List, Optional, Any
+
+from src.data_processing.glue_data_loader import GlueDataLoader
 
 logger = logging.getLogger(__name__)
 
 
-class RedshiftConnection:
-    """Redshift database connection"""
+class GlueConnection:
+    """AWS Glue Catalog connection"""
 
-    def __init__(self, config: Dict):
+    def __init__(self, config: Dict = None):
         """
-        Initialize Redshift connection
+        Initialize Glue connection
 
         Args:
-            config: Redshift configuration dictionary
+            config: Configuration dictionary with database name and region
         """
-        self.config = config
-        self.connection = None
-        self.cursor = None
+        self.config = config or {}
+        self.database_name = self.config.get('database', 'dealers')
+        self.region = self.config.get('region', 'us-east-1')
+        self.data_loader = GlueDataLoader(self.database_name, self.region)
+
+        logger.info(f"GlueConnection initialized: database={self.database_name}, region={self.region}")
 
     def connect(self) -> bool:
-        """
-        Establish connection to Redshift
-
-        Returns:
-            Success flag
-        """
+        """Establish connection"""
         try:
-            self.connection = psycopg2.connect(
-                host=self.config.get('host'),
-                port=self.config.get('port', 5439),
-                database=self.config.get('database'),
-                user=self.config.get('user'),
-                password=self.config.get('password'),
-                sslmode='require'
-            )
-            self.cursor = self.connection.cursor()
-            logger.info("Connected to Redshift")
+            # Test connection by listing tables
+            tables = self.data_loader.list_tables()
+            logger.info(f"Connected to Glue Catalog. Found {len(tables)} tables")
             return True
-
         except Exception as e:
-            logger.error(f"Failed to connect to Redshift: {str(e)}")
+            logger.error(f"Failed to connect to Glue Catalog: {str(e)}")
             return False
 
     def disconnect(self):
-        """Close Redshift connection"""
-        try:
-            if self.cursor:
-                self.cursor.close()
-            if self.connection:
-                self.connection.close()
-            logger.info("Disconnected from Redshift")
-        except Exception as e:
-            logger.error(f"Error disconnecting from Redshift: {str(e)}")
+        """Close connection"""
+        if self.data_loader:
+            self.data_loader.clear_cache()
+        logger.info("Glue connection closed")
 
     def execute_query(self, query: str, params: Any = None) -> pd.DataFrame:
-        """
-        Execute SQL query and return results as DataFrame
+        """Execute query using Glue/Athena"""
+        # This is a simplified implementation - the actual queries are handled by GlueDataLoader methods
+        logger.debug(f"Query received: {query[:100]}...")
 
-        Args:
-            query: SQL query string
-            params: Query parameters
+        # Return empty DataFrame as actual queries are handled by specific methods
+        return pd.DataFrame()
 
-        Returns:
-            Pandas DataFrame with results
-        """
-        try:
-            if not self.connection:
-                if not self.connect():
-                    return pd.DataFrame()
+    def get_dealers(self) -> List[str]:
+        """Get list of dealers"""
+        return self.data_loader.get_dealers()
 
-            return pd.read_sql_query(query, self.connection, params=params)
+    def get_products(self) -> List[str]:
+        """Get list of products"""
+        return self.data_loader.get_products()
 
-        except Exception as e:
-            logger.error(f"Error executing Redshift query: {str(e)}")
-            return pd.DataFrame()
+    def get_regions(self) -> List[str]:
+        """Get list of regions"""
+        return self.data_loader.get_regions()
 
-    def execute_statement(self, query: str, params: Any = None) -> bool:
-        """
-        Execute SQL statement (INSERT, UPDATE, DELETE)
+    def get_kpi_metrics(self, filters: Dict = None) -> Dict:
+        """Get KPI metrics"""
+        return self.data_loader.get_kpi_metrics(filters)
 
-        Args:
-            query: SQL statement
-            params: Query parameters
+    def get_transaction_data(self, filters: Dict = None, page: int = 1, page_size: int = 20) -> pd.DataFrame:
+        """Get transaction lineage data"""
+        return self.data_loader.get_transaction_data(filters, page, page_size)
 
-        Returns:
-            Success flag
-        """
-        try:
-            if not self.connection:
-                if not self.connect():
-                    return False
+    def get_dealer_health_scores(self, filters: Dict = None) -> pd.DataFrame:
+        """Get dealer health scores"""
+        return self.data_loader.get_dealer_health_scores(filters)
 
-            with self.connection.cursor() as cursor:
-                cursor.execute(query, params)
-                self.connection.commit()
+    def get_strategic_insights(self) -> pd.DataFrame:
+        """Get strategic insights"""
+        return self.data_loader.get_strategic_insights()
 
-            return True
+    def get_table_data(self, table_key: str, filters: Dict = None, limit: int = None) -> pd.DataFrame:
+        """Get data from a specific table"""
+        return self.data_loader.get_table_data(table_key, filters=filters, limit=limit)
 
-        except Exception as e:
-            logger.error(f"Error executing Redshift statement: {str(e)}")
-            self.connection.rollback()
-            return False
+    def clear_cache(self):
+        """Clear the cache"""
+        self.data_loader.clear_cache()
 
-    def execute_many(self, query: str, params_list: List) -> bool:
-        """
-        Execute many statements
-
-        Args:
-            query: SQL statement
-            params_list: List of parameter tuples
-
-        Returns:
-            Success flag
-        """
-        try:
-            if not self.connection:
-                if not self.connect():
-                    return False
-
-            with self.connection.cursor() as cursor:
-                cursor.executemany(query, params_list)
-                self.connection.commit()
-
-            return True
-
-        except Exception as e:
-            logger.error(f"Error executing Redshift many statements: {str(e)}")
-            self.connection.rollback()
-            return False
+    def get_cache_stats(self) -> Dict:
+        """Get cache statistics"""
+        return self.data_loader.get_cache_stats()
 
 
-class AuroraConnection:
-    """Aurora PostgreSQL database connection"""
-
-    def __init__(self, config: Dict):
-        """
-        Initialize Aurora connection
-
-        Args:
-            config: Aurora configuration dictionary
-        """
-        self.config = config
-        self.connection = None
-        self.cursor = None
-
-    def connect(self) -> bool:
-        """
-        Establish connection to Aurora
-
-        Returns:
-            Success flag
-        """
-        try:
-            self.connection = psycopg2.connect(
-                host=self.config.get('host'),
-                port=self.config.get('port', 5432),
-                database=self.config.get('database'),
-                user=self.config.get('user'),
-                password=self.config.get('password'),
-                sslmode='require'
-            )
-            self.cursor = self.connection.cursor()
-            logger.info("Connected to Aurora PostgreSQL")
-            return True
-
-        except Exception as e:
-            logger.error(f"Failed to connect to Aurora: {str(e)}")
-            return False
-
-    def disconnect(self):
-        """Close Aurora connection"""
-        try:
-            if self.cursor:
-                self.cursor.close()
-            if self.connection:
-                self.connection.close()
-            logger.info("Disconnected from Aurora PostgreSQL")
-        except Exception as e:
-            logger.error(f"Error disconnecting from Aurora: {str(e)}")
-
-    def execute_query(self, query: str, params: Any = None) -> pd.DataFrame:
-        """
-        Execute SQL query and return results as DataFrame
-
-        Args:
-            query: SQL query string
-            params: Query parameters
-
-        Returns:
-            Pandas DataFrame with results
-        """
-        try:
-            if not self.connection:
-                if not self.connect():
-                    return pd.DataFrame()
-
-            return pd.read_sql_query(query, self.connection, params=params)
-
-        except Exception as e:
-            logger.error(f"Error executing Aurora query: {str(e)}")
-            return pd.DataFrame()
-
-    def execute_statement(self, query: str, params: Any = None) -> bool:
-        """
-        Execute SQL statement (INSERT, UPDATE, DELETE)
-
-        Args:
-            query: SQL statement
-            params: Query parameters
-
-        Returns:
-            Success flag
-        """
-        try:
-            if not self.connection:
-                if not self.connect():
-                    return False
-
-            with self.connection.cursor() as cursor:
-                cursor.execute(query, params)
-                self.connection.commit()
-
-            return True
-
-        except Exception as e:
-            logger.error(f"Error executing Aurora statement: {str(e)}")
-            self.connection.rollback()
-            return False
-
-    def execute_many(self, query: str, params_list: List) -> bool:
-        """
-        Execute many statements
-
-        Args:
-            query: SQL statement
-            params_list: List of parameter tuples
-
-        Returns:
-            Success flag
-        """
-        try:
-            if not self.connection:
-                if not self.connect():
-                    return False
-
-            with self.connection.cursor() as cursor:
-                cursor.executemany(query, params_list)
-                self.connection.commit()
-
-            return True
-
-        except Exception as e:
-            logger.error(f"Error executing Aurora many statements: {str(e)}")
-            self.connection.rollback()
-            return False
-
-
-def get_db_connection() -> Any:
-    """
-    Get database connection based on configuration
-
-    Returns:
-        Database connection object
-    """
+def get_db_connection():
+    """Get database connection (Glue Catalog)"""
     from .config import Config
 
     config = Config()
-    db_type = config.get('database.type', 'redshift')
+    db_config = config.get('database', {})
 
-    if db_type == 'redshift':
-        redshift_config = config.get_redshift_config()
-        conn = RedshiftConnection(redshift_config)
-        conn.connect()
-        return conn
-    elif db_type == 'aurora':
-        aurora_config = config.get_aurora_config()
-        conn = AuroraConnection(aurora_config)
-        conn.connect()
-        return conn
-    else:
-        raise ValueError(f"Unsupported database type: {db_type}")
+    # Use Glue connection by default
+    conn = GlueConnection({
+        'database': db_config.get('glue_database', 'dealers'),
+        'region': db_config.get('region', 'us-east-1')
+    })
+    conn.connect()
+    return conn
+
+
