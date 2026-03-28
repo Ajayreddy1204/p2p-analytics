@@ -1,0 +1,39 @@
+# AWS Configuration
+aws:
+  region: us-east-1
+  bedrock:
+    model: anthropic.claude-3-sonnet-20240229-v1:0
+    max_tokens: 4096
+    temperature: 0.7
+    timeout: 30
+    retry_attempts: 3
+
+  amazon_q:
+    application_id: ${AMAZON_Q_APP_ID}
+    region: us-east-1
+
+  redshift:
+    cluster_identifier: dealer-redshift-cluster
+    database: dealer_prod
+    user: ${REDSHIFT_USER}
+    password: ${REDSHIFT_PASSWORD}
+
+  aurora:
+    cluster_identifier: dealer-aurora-cluster
+    database: dealer_prod
+    user: ${AURORA_USER}
+    password: ${AURORA_PASSWORD}
+
+  s3:
+    bucket: dealerpulse-data
+    prefix: analytics/
+    region: us-east-1
+
+  cloudwatch:
+    log_group: /dealerpulse/app
+    log_stream: dashboard
+    namespace: DealerPulse
+
+  iam:
+    role: dealerpulse-app-role
+    policy: dealerpulse-policy
